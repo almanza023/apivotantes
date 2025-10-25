@@ -1,0 +1,497 @@
+<?php
+
+namespace App\Http\Controllers\V1;
+
+use App\Http\Controllers\Controller;
+use App\Models\Votante;
+use App\Models\Persona;
+use Illuminate\Http\Request;
+use JWTAuth;
+use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\Validator;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+
+class VotanteController extends Controller
+{
+    protected $user;
+    protected $model;
+
+    public function __construct(Request $request)
+    {
+        $token = $request->header('Authorization');
+        $this->model=Votante::class;
+        if($token != ''){
+            //En caso de que requiera autentifiación la ruta obtenemos el usuario y lo almacenamos en una variable, nosotros no lo utilizaremos.
+            //$this->user = JWTAuth::parseToken()->authenticate();
+        }
+    }
+
+    /**
+     * Display a listing of the resource.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function index()
+    {
+        //Listamos todos los productos
+        $objeto=$this->model::get();
+       if($objeto){
+        return response()->json([
+            'code'=>200,
+            'data' => $objeto
+        ], Response::HTTP_OK);
+       }else{
+        return response()->json([
+            'code'=>200,
+            'data' => []
+        ], Response::HTTP_OK);
+       }
+
+    }
+
+
+    /**
+     * Store a newly created resource in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function store(Request $request)
+    {
+        //Validamos los datos
+        $data = $request->only('tipo_persona', 'barrio', 'municipio', 'user', 'lider','sublider',
+        'numerodocumento', 'nombrecompleto', 'fecha_expedicion', 'telefono', 'puesto', 'mesa');
+
+        $validator = Validator::make($data, [
+            'barrio' => 'required|numeric',
+            'user' => 'required|numeric',
+            'numerodocumento' => 'required|numeric|min:6|unique:votantes',
+            'nombrecompleto' => 'required|max:200|string',
+            'telefono' => 'required|numeric|min:9',
+            'puesto' => 'required|numeric',
+            'mesa' => 'required|numeric',
+        ]);
+
+        //Si falla la validación
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->messages()], 400);
+        }
+
+        //Creamos el producto en la BD
+        $objeto = $this->model::create([
+            'barrio_id' => $request->barrio,
+            'municipio_id' => $request->municipio,
+            'user_id' => $request->user,
+            'lider_id' => $request->lider,
+            'sublider_id' => $request->sublider,
+            'numerodocumento' => $request->numerodocumento,
+            'nombrecompleto' => $request->nombrecompleto,
+            'fecha_expedicion'=>$request->fecha_expedicion,
+            'telefono'=>$request->telefono,
+            'puesto_id'=>$request->puesto,
+            'mesa'=>$request->mesa,
+        ]);
+
+        //Respuesta en caso de que todo vaya bien.
+        return response()->json([
+            'code'=>200,
+            'message' => 'Registro Agreado Exitosamente',
+            'data' => $objeto
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Display the specified resource.
+     *
+     * @param  \App\Models\Product  $product
+     * @return \Illuminate\Http\Response
+     */
+    public function show($id)
+
+    {
+        //Bucamos el producto
+        $objeto = $this->model::getById($id);
+
+        //Si el producto no existe devolvemos error no encontrado
+        if (!$objeto) {
+            return response()->json([
+                'code'=>200,
+                'message' => 'Registro no encontrado en la base de datos.'
+            ], 404);
+        }
+
+        //Si hay producto lo devolvemos
+        return response()->json([
+            'code'=>200,
+            'data' => $objeto
+        ], Response::HTTP_OK);
+    }
+
+
+    /**
+     * Update the specified resource in storage.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Product  $product
+     * @return \Illuminate\Http\Response
+     */
+    public function update(Request $request, $id)
+    {
+        //Validación de datos
+        $data = $request->only('tipo_persona', 'barrio', 'municipio', 'user', 'lider', 'sublider',
+        'numerodocumento', 'nombrecompleto', 'fecha_expedicion', 'telefono', 'puesto', 'mesa', 'lidernuevo', 'sublidernuevo', 'motivollamada');
+        $validator = Validator::make($data, [
+            'user' => 'required|numeric',
+            'numerodocumento' => 'required|numeric|min:6',
+            'nombrecompleto' => 'required|max:200|string',
+            'telefono' => 'required|numeric|min:9',
+        ]);
+
+        //Si falla la validación error.
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->messages()], 400);
+        }
+
+        //Buscamos el producto
+        $objeto = $this->model::findOrfail($id);
+
+        //Actualizamos el producto.
+        if(!empty($request->lidernuevo)) {
+            $objeto->update([
+            'lider_id' => $request->lidernuevo,
+            'sublider_id' => $request->sublidernuevo,
+            'numerodocumento' => $request->numerodocumento,
+            'nombrecompleto' => $request->nombrecompleto,
+            'telefono'=>$request->telefono,
+            'motivollamada'=>$request->motivollamada,
+        ]);
+        }else{
+            $objeto->update([
+            'numerodocumento' => $request->numerodocumento,
+            'nombrecompleto' => $request->nombrecompleto,
+            'telefono'=>$request->telefono,
+            'motivollamada'=>$request->motivollamada,
+        ]);
+        }
+
+        //Devolvemos los datos actualizados.
+        return response()->json([
+            'code'=>200,
+            'message' => 'Registro Actualizado Exitosamente',
+            'data' => $objeto
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     *
+     * @param  \App\Models\Product  $product
+     * @return \Illuminate\Http\Response
+     */
+    public function destroy($id)
+    {
+        //Buscamos el producto
+        $objeto = $this->model::findOrfail($id);
+
+        //Eliminamos el producto
+        $objeto->delete();
+
+        //Devolvemos la respuesta
+        return response()->json([
+            'code'=>200,
+            'message' => 'Registro Eliminado'
+        ], Response::HTTP_OK);
+    }
+
+    public function cambiarEstado(Request $request)
+    {
+        //Validación de datos
+        $data = $request->only('id');
+        $validator = Validator::make($data, [
+            'id' => 'required'          ]);
+        //Si falla la validación error.
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->messages()], 400);
+        }
+        $objeto = $this->model::findOrfail($request->id);
+        if($objeto->estado==1){
+            $objeto->estado=2;
+            $objeto->save();
+        }else{
+            $objeto->estado=1;
+            $objeto->save();
+        }
+        //Devolvemos los datos actualizados.
+        return response()->json([
+            'code'=>200,
+            'message' => 'Estado Actualizado Extiosamente',
+            'data' => $objeto
+        ], Response::HTTP_OK);
+    }
+
+
+    public function validarDocumento($documento)
+    {
+        //Listamos todos los productos
+
+        $objeto=$this->model::validarDocumento($documento);
+       if($objeto){
+        return response()->json([
+            'code'=>200,
+            'data' => $objeto
+        ], Response::HTTP_OK);
+       }else{
+
+        $validarLider=Persona::validarDuplicado($documento);
+        if(!empty($validarLider)){
+           return response()->json([
+            'code'=>200,
+            'data' =>$validarLider
+        ], Response::HTTP_OK);
+        }else{
+             return response()->json([
+            'code'=>200,
+            'data' => []
+        ], Response::HTTP_OK);
+        }
+
+       }
+
+    }
+
+    public function filtros(Request $request){
+
+        $objeto = Votante::query()
+        ->when($request->lider, fn($query, $lider) => $query->where('lider_id', $lider))
+        ->when($request->sublider, fn($query, $sublider) => $query->where('sublider_id', $sublider))
+        ->when($request->municipio, fn($query, $municipio) => $query->where('municipio_id', $municipio))
+        ->when($request->barrio, fn($query, $barrio) => $query->where('barrio_id', $barrio))
+        ->when($request->puesto, fn($query, $puesto) => $query->where('puesto_id', $puesto))
+        ->with(['lider', 'sublider', 'barrio', 'puesto', 'municipio', 'user'])
+        ->get();
+        if($objeto){
+
+            $responseArray=[];
+            foreach ($objeto as $item) {
+                $tempArray=[
+                    'id'=>$item->id,
+                    'nombrecompleto'=>$item->nombrecompleto,
+                    'tipo_persona'=>$item->tipo_persona,
+                    'numerodocumento'=>$item->numerodocumento,
+                    'telefono'=>$item->telefono,
+                    'puesto'=>$item->puesto->descripcion,
+                    'mesa'=>$item->mesa,
+                    'barrio'=>$item->barrio->descripcion,
+                    'lider'=>$item->lider->nombrecompleto,
+                    'municipio'=>$item->municipio->descripcion,
+                    'fecha_creacion'=>$item->created_at->format('d M Y - H:i:s')
+                ];
+                if($item->sublider){
+                    $tempArray['sublider']=$item->sublider->nombrecompleto;
+                }
+                array_push($responseArray, $tempArray);
+            }
+            return response()->json([
+                'code'=>200,
+                'data' => $responseArray
+            ], Response::HTTP_OK);
+           }else{
+            return response()->json([
+                'code'=>400,
+                'data' => []
+            ], Response::HTTP_BAD_REQUEST);
+           }
+
+    }
+
+    public function tranferirVotantes(Request $request){
+        $lider=$request->lider;
+        $sublider=$request->sublider;
+        $lider_mov=$request->lider_mov;
+        $resultado=Votante::transferirVotantes($lider, $sublider, $lider_mov );
+       if($resultado){
+        return response()->json([
+            'code'=>200,
+            'message' => "Votantes Transferidos Exitosamente"
+        ], Response::HTTP_OK);
+       }else{
+        return response()->json([
+            'code'=>200,
+            'message' => "Error al Tranferir Votantes"
+        ], Response::HTTP_BAD_REQUEST);
+       }
+    }
+
+    public function agregarPuesto(Request $request)
+    {
+        //Validación de datos
+        $data = $request->only('documento', 'departamento', 'municipio', 'puesto', 'mesa', 'direccion', 'usuariosube');
+        $validator = Validator::make($data, [
+            'documento' => 'required'
+        ]);
+
+        //Si falla la validación error.
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->messages()], 400);
+        }
+
+        $documento=$request->documento;
+        $date = Carbon::now()->format('Y-m-d');
+        //Buscamos el producto
+        $objeto = $this->model::where('numerodocumento', $documento)->first();
+
+        //Actualizamos el producto.
+        $objeto->update([
+            'departamento' => $request->departamento,
+            'municipio' => $request->municipio,
+            'puestovotacion' => $request->puestovotacion,
+            'direccion' => $request->direccion,
+            'mesavotacion'=>$request->mesavotacion,
+            'fechapuesto'=>$date,
+            'estado'=>3,
+            'usuariosube'=>$request->usuariosube
+        ]);
+        if($objeto){
+            //Devolvemos los datos actualizados.
+        return response()->json([
+            'code'=>200,
+            'message' => 'OK',
+        ], Response::HTTP_OK);
+        }else{
+              return response()->json([
+            'code'=>400,
+            'message' => 'ERROR',
+        ], Response::HTTP_BAD_REQUEST);
+        }
+    }
+
+    public function votantesSinPuesto(Request $request)
+    {
+        //Listamos todos los productos
+        $objeto=$this->model::getVotantesPuesto($request->fecha1, $request->fecha2);
+
+       if($objeto){
+        return response()->json([
+            'code'=>200,
+            'data' => $objeto
+        ], Response::HTTP_OK);
+       }else{
+        return response()->json([
+            'code'=>400,
+            'data' => []
+        ], Response::HTTP_BAD_REQUEST);
+       }
+
+    }
+    public function getDigitados($usuario)
+    {
+        //Listamos todos los productos
+      $objeto=DB::select("select count(*) as total from votantes v where v.puestovotacion is not null and v.usuariosube=? and v.estado=3", [$usuario]);
+       if($objeto){
+        return response()->json([
+            'code'=>200,
+            'data' => $objeto[0]
+        ], Response::HTTP_OK);
+       }else{
+        return response()->json([
+            'code'=>200,
+            'data' => []
+        ], Response::HTTP_OK);
+       }
+
+    }
+
+    public function confirmarVoto(Request $request)
+    {
+        //Validación de datos
+        $data = $request->only('id', 'ip');
+        $validator = Validator::make($data, [
+            'id' => 'required'
+        ]);
+
+        //Si falla la validación error.
+        if ($validator->fails()) {
+            return response()->json(['error' => $validator->messages()], 400);
+        }
+
+        $documento=$request->documento;
+        $date = Carbon::now()->format('Y-m-d');
+        //Buscamos el producto
+        $objeto = $this->model::find($request->id);
+
+        //Actualizamos el producto.
+        $objeto->update([
+            'confirmado' => "SI",
+            'ip' => "",
+            'fechaconfirmado' => $date,
+        ]);
+        if($objeto){
+            //Devolvemos los datos actualizados.
+        return response()->json([
+            'code'=>200,
+            'message' => 'Registro Confirmado',
+        ], Response::HTTP_OK);
+        }else{
+              return response()->json([
+            'code'=>400,
+            'message' => 'ERROR',
+        ], Response::HTTP_BAD_REQUEST);
+        }
+    }
+
+    public function votantesSinPuestoFecha(Request $request)
+    {
+        $documentos=$request->documentos;
+
+    }
+
+
+    public function actualizarNombreAPI(Request $request)
+    {
+        $nuips=$request->nuips;
+        $client = new \GuzzleHttp\Client();
+        $processed = 0;
+        $updated = 0;
+        $failed = 0;
+        $procesed=count($nuips);
+        foreach ($nuips as $nui) {
+            try {
+                $response = $client->post('https://api.example.com/actualizar-nuips', [
+                    'form_params' => [
+                        'nuips' => $nui
+                    ]
+                ]);
+                if ($response->getStatusCode() != 200) {
+                    continue;
+                }
+
+                $respuesta = json_decode($response->getBody()->getContents());
+                $nombre_completo = $respuesta->name;
+
+                $votante = Votante::where('numerodocumento', $nui)->first();
+                if ($votante) {
+                    $votante->update([
+                        'nombrecompleto' => $nombre_completo,
+                        'apiname' => true,
+                        'fechaapiname'=>Carbon::now()->format('Y-m-d H:i:s')
+                    ]);
+                    $updated++;
+                }
+            } catch (\GuzzleHttp\Exception\RequestException $e) {
+                $failed++;
+                continue;
+            }
+
+        }
+
+        return response()->json([
+            'code'=>200,
+            'message' => 'Registro Actualizado Exitosamente',
+            'updated' => $updated,
+            'processed' => $procesed,
+            'failed' => $failed,
+        ], Response::HTTP_OK);
+    }
+
+}
