@@ -40,7 +40,9 @@ class Votante extends Model
         'apiname',
         'fechaapiname',
         'apipuesto',
-        'fechaapipuesto'
+        'fechaapipuesto',
+        'usuariocreacion',
+        'idcarguemasivo'
     ];
 
     public function barrio()

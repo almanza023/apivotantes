@@ -4,6 +4,7 @@ namespace App\Http\Controllers\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campanna;
+use App\Models\Municipio;
 use App\Models\Persona;
 use App\Models\Votante;
 use Illuminate\Http\Request;
@@ -52,6 +53,8 @@ class EstadisticaController extends Controller
     $potencialSincelejo=$votantesSincelejo+ $lideresSincelejo;
     $potencialOtraCiudad=$votantesOtrasCiudad+ $lideresOtrasCiudad;
 
+    $municipios=count(Municipio::getActive());
+
     $objeto=[
         'votantes'=>$potencialelectoral,
         'lideres'=>$lideres,
@@ -60,6 +63,7 @@ class EstadisticaController extends Controller
         'porcentajeConfirmado'=>$porcentajeConfirmado,
         'potencialSincelejo'=>$potencialSincelejo,
         'potencialOtraCiudad'=>$potencialOtraCiudad,
+        'municipios'=>$municipios,
     ];
        if($objeto){
         return response()->json([

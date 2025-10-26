@@ -109,9 +109,11 @@ Route::prefix('v1')->group(function () {
 
            Route::post('votantes/filtros', [VotanteController::class, 'filtros']);
            Route::post('votantes/tranferir-votantes', [VotanteController::class, 'tranferirVotantes']);
+           Route::post('votantes/cargar-votantes', [VotanteController::class, 'cargarVotantes']);
+           Route::post('votantes/actualizar-nombre-api', [VotanteController::class, 'actualizarNombreAPI']);
+           Route::post('votantes/obtener-votantes-by-cargue', [VotanteController::class, 'obtenerVotantesByCargue']);
 
-
-          //Puesto Votacion
+           //Puesto Votacion
           Route::get('puestos', [PuestoVotacionController::class, 'index']);
           Route::post('puestos', [PuestoVotacionController::class, 'store']);
           Route::get('puestos/{id}', [PuestoVotacionController::class, 'show']);

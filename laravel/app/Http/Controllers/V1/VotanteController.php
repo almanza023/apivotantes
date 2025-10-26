@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\CargueMasivo;
 use App\Models\Votante;
 use App\Models\Persona;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ class VotanteController extends Controller
         $this->model=Votante::class;
         if($token != ''){
             //En caso de que requiera autentifiación la ruta obtenemos el usuario y lo almacenamos en una variable, nosotros no lo utilizaremos.
-            //$this->user = JWTAuth::parseToken()->authenticate();
+            $this->user = JWTAuth::parseToken()->authenticate();
         }
     }
 
@@ -446,20 +447,87 @@ class VotanteController extends Controller
 
     }
 
+    public function cargarVotantes(Request $request)
+    {
+        $votantes = $request->input('votantes', []);
+        $cargados=0;
+        $errores=0;
+        $validados=0;
+        $cargados=count($votantes);
+        $arrayErrores=[];
+        DB::beginTransaction();
+        try {
+            if($cargados >0 ){
+                $cargueMasivo=CargueMasivo::create([
+                    'total' => $cargados,
+                    'errores' => $errores,
+                    'exitosos' => $validados,
+                    'usuario' => $this->user->username,
+                ]);
+            }
+            foreach ($votantes as $votante) {
+                $validar=Votante::where('numerodocumento', $votante['numerodocumento'])->first();
+                if($validar){
+                    $errores++;
+                    array_push($arrayErrores, $validar);
+                    continue;
+                }
+                $votante = Votante::create([
+                    'numerodocumento' => $votante['numerodocumento'],
+                    'municipio_id' => $votante['municipio_id'],
+                    'lider_id' => $votante['lider_id'],
+                    'sublider_id' => $votante['sublider_id'],
+                    'estado' => 1,
+                    'usuariocreacion' => $this->user->username,
+                    'idcarguemasivo'=>$cargueMasivo->id
+                ]);
+                $validados++;
+            }
+            //Actualizar cargue masivo
+            $cargueMasivo->errores=$errores;
+            $cargueMasivo->exitosos=$validados;
+            $cargueMasivo->save();
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json([
+                'code'=>400,
+                'message' => $e->getMessage(),
+            ], Response::HTTP_BAD_REQUEST);
+        }
+        $mensaje="Cargados: ".$cargados." Validados: ".$validados." Errores: ".$errores;
+        $data=Votante::where('idcarguemasivo', $cargueMasivo->id)->get();
+        return response()->json([
+            'code'=>200,
+            'message' => $mensaje,
+            'carguemasivo' => $cargueMasivo,
+            'detailError'=>$arrayErrores,
+            'data'=>$data
+        ], Response::HTTP_OK);
+    }
+
+
+
 
     public function actualizarNombreAPI(Request $request)
     {
-        $nuips=$request->nuips;
+        $idcarguemasivo=$request->idcarguemasivo;
         $client = new \GuzzleHttp\Client();
         $processed = 0;
         $updated = 0;
         $failed = 0;
-        $procesed=count($nuips);
-        foreach ($nuips as $nui) {
+        $votantes=Votante::where('idcarguemasivo', $idcarguemasivo)->get();
+        $processed=count($votantes);
+        foreach ($votantes as $votante) {
             try {
-                $response = $client->post('https://api.example.com/actualizar-nuips', [
-                    'form_params' => [
-                        'nuips' => $nui
+                $response = $client->post('http://localhost:8000/consultar-nombre', [
+                    'headers' => [
+                        'accept' => 'application/json',
+                        'Content-Type' => 'application/json',
+                    ],
+                    'json' => [
+                        'nuip' => $votante->numerodocumento,
+                        'fecha_expedicion' => ''
                     ]
                 ]);
                 if ($response->getStatusCode() != 200) {
@@ -468,8 +536,6 @@ class VotanteController extends Controller
 
                 $respuesta = json_decode($response->getBody()->getContents());
                 $nombre_completo = $respuesta->name;
-
-                $votante = Votante::where('numerodocumento', $nui)->first();
                 if ($votante) {
                     $votante->update([
                         'nombrecompleto' => $nombre_completo,
@@ -484,13 +550,29 @@ class VotanteController extends Controller
             }
 
         }
+        $votantes=Votante::where('idcarguemasivo', $idcarguemasivo)->get();
+        return response()->json([
+            'code'=>200,
+            'message' => 'Operación Finalizada Exitosamente',
+            'exitosos' => $updated,
+            'total' => $processed,
+            'errores' => $failed,
+            'data'=>$votantes
+        ], Response::HTTP_OK);
+    }
+
+    public function obtenerVotantesByCargue(Request $request)
+    {
+        $idcarguemasivo=$request->idcarguemasivo;
+        $data=Votante::where('idcarguemasivo', $idcarguemasivo)->get();
+        $carguemasivo=CargueMasivo::where('id', $idcarguemasivo)->first();
+        $mensaje="Cargados: ".$carguemasivo->total." Validados: ".$carguemasivo->exitosos." Errores: ".$carguemasivo->errores;
 
         return response()->json([
             'code'=>200,
-            'message' => 'Registro Actualizado Exitosamente',
-            'updated' => $updated,
-            'processed' => $procesed,
-            'failed' => $failed,
+            'message' => $mensaje,
+            'carguemasivo' => $carguemasivo,
+            'data'=>$data
         ], Response::HTTP_OK);
     }
 
