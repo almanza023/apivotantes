@@ -70,7 +70,7 @@ class VotanteController extends Controller
             'numerodocumento' => 'required|numeric|min:6|unique:votantes',
             'nombrecompleto' => 'required|max:200|string',
             'telefono' => 'required|numeric|min:9',
-            'puesto' => 'required|numeric',
+            //'puesto' => 'required|numeric',
             'mesa' => 'required|numeric',
         ]);
 
@@ -166,6 +166,8 @@ class VotanteController extends Controller
             'nombrecompleto' => $request->nombrecompleto,
             'telefono'=>$request->telefono,
             'motivollamada'=>$request->motivollamada,
+            'usuarioactualiza'=>$this->user->username,
+            'fechaactualiza'=>Carbon::now()->format('Y-m-d H:i:s')
         ]);
         }else{
             $objeto->update([
@@ -173,6 +175,8 @@ class VotanteController extends Controller
             'nombrecompleto' => $request->nombrecompleto,
             'telefono'=>$request->telefono,
             'motivollamada'=>$request->motivollamada,
+            'usuarioactualiza'=>$this->user->username,
+            'fechaactualiza'=>Carbon::now()->format('Y-m-d H:i:s')
         ]);
         }
 
@@ -477,6 +481,7 @@ class VotanteController extends Controller
                     'municipio_id' => $votante['municipio_id'],
                     'lider_id' => $votante['lider_id'],
                     'sublider_id' => $votante['sublider_id'],
+                    'telefono' => $votante['telefono'],
                     'estado' => 1,
                     'usuariocreacion' => $this->user->username,
                     'idcarguemasivo'=>$cargueMasivo->id
@@ -519,6 +524,9 @@ class VotanteController extends Controller
         $votantes=Votante::where('idcarguemasivo', $idcarguemasivo)->get();
         $processed=count($votantes);
         foreach ($votantes as $votante) {
+            if(!empty($votante->nombrecompleto)){
+                continue;
+            }
             try {
                 $response = $client->post('http://localhost:8000/consultar-nombre', [
                     'headers' => [
