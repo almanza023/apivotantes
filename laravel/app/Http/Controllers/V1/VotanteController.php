@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CargueMasivo;
 use App\Models\Votante;
 use App\Models\Persona;
+use App\Models\VotanteOld;
 use Illuminate\Http\Request;
 use JWTAuth;
 use Symfony\Component\HttpFoundation\Response;
@@ -273,27 +274,38 @@ class VotanteController extends Controller
         ->when($request->municipio, fn($query, $municipio) => $query->where('municipio_id', $municipio))
         ->when($request->barrio, fn($query, $barrio) => $query->where('barrio_id', $barrio))
         ->when($request->puesto, fn($query, $puesto) => $query->where('puesto_id', $puesto))
-        ->with(['lider', 'sublider', 'barrio', 'puesto', 'municipio', 'user'])
+        ->with([
+            'lider:id,nombrecompleto',
+            'sublider:id,nombrecompleto',
+            'barrio:id,descripcion',
+            'puesto:id,descripcion',
+            'municipio:id,descripcion'
+        ])
+        ->select('id', 'nombrecompleto', 'numerodocumento', 'telefono', 'mesa', 'barrio_id', 'lider_id', 'sublider_id', 'puesto_id', 'municipio_id', 'created_at')
         ->get();
+
         if($objeto){
 
             $responseArray=[];
             foreach ($objeto as $item) {
                 $tempArray=[
                     'id'=>$item->id,
-                    'nombrecompleto'=>$item->nombrecompleto,
-                    'tipo_persona'=>$item->tipo_persona,
-                    'numerodocumento'=>$item->numerodocumento,
-                    'telefono'=>$item->telefono,
-                    'puesto'=>$item->puesto->descripcion,
-                    'mesa'=>$item->mesa,
-                    'barrio'=>$item->barrio->descripcion,
-                    'lider'=>$item->lider->nombrecompleto,
+                    'nombrecompleto'=>$item->nombrecompleto ?? '',
+                    'numerodocumento'=>$item->numerodocumento ?? '',
+                    'telefono'=>$item->telefono ?? '',
+                    'puesto'=>$item->puesto->descripcion ?? '',
+                    'mesa'=>$item->mesa ?? '',
+                    'barrio'=>$item->barrio->descripcion ?? '',
+                    'lider'=>$item->lider->nombrecompleto ?? '',
                     'municipio'=>$item->municipio->descripcion,
-                    'fecha_creacion'=>$item->created_at->format('d M Y - H:i:s')
+                    'fecha_creacion'=>$item->created_at ? $item->created_at->format('d M Y - H:i:s') : '',
+                    'municipiovotacion'=>$item->muncipio,
+                    'puestovotacion'=>$item->puestovotacion,
+                    'mesavotacion'=>$item->mesavotacion,
+
                 ];
                 if($item->sublider){
-                    $tempArray['sublider']=$item->sublider->nombrecompleto;
+                    $tempArray['sublider']=$item->sublider->nombrecompleto ?? '';
                 }
                 array_push($responseArray, $tempArray);
             }
@@ -445,6 +457,43 @@ class VotanteController extends Controller
         }
     }
 
+     public function validarDocumentoConfirmacion($id, $puesto)
+    {
+        //Listamos todos los productos
+       if (strpos($id, "S")){
+           $idnuevo = trim($id, "S");
+           $objeto=Persona::validarConfirmacion($idnuevo, $puesto);
+       }else{
+            $objeto = $this->model::validarConfirmacion($id, $puesto);
+       }
+        //Si el producto no existe devolvemos error no encontrado
+        if (!$objeto) {
+            return response()->json([
+                'code'=>200,
+                'message' =>[]
+            ], 404);
+        }
+
+        //Si hay producto lo devolvemos
+        return response()->json([
+            'code'=>200,
+            'data' => $objeto
+        ], Response::HTTP_OK);
+
+    }
+
+    public function totalConfirmadosUsuario($usuario)
+    {
+        //Listamos todos los productos
+       //Bucamos el producto
+        $objeto = $this->model::getTotalConfirmadoUsuario($usuario);
+        return response()->json([
+                'code'=>200,
+                'data' => $objeto
+            ], 200);
+
+    }
+
     public function votantesSinPuestoFecha(Request $request)
     {
         $documentos=$request->documentos;
@@ -470,7 +519,8 @@ class VotanteController extends Controller
                 ]);
             }
             foreach ($votantes as $votante) {
-                $validar=Votante::where('numerodocumento', $votante['numerodocumento'])->first();
+                $validar=Votante::with(['lider', 'sublider', 'municipio'])
+                ->where('numerodocumento', $votante['numerodocumento'])->first();
                 if($validar){
                     $errores++;
                     array_push($arrayErrores, $validar);
@@ -486,6 +536,21 @@ class VotanteController extends Controller
                     'usuariocreacion' => $this->user->username,
                     'idcarguemasivo'=>$cargueMasivo->id
                 ]);
+                //Buscar en VotanteOld
+            // $votanteOld = VotanteOld::where('numerodocumento', $votante->numerodocumento)->first();
+            // if ($votanteOld) {
+            //     $votante->nombrecompleto = $votanteOld->nombrecompleto;
+            //     $votante->departamento = $votanteOld->departamento;
+            //     $votante->municipio = $votanteOld->municipio;
+            //     $votante->puestovotacion = $votanteOld->puestovotacion;
+            //     $votante->direccion = $votanteOld->direccion;
+            //     $votante->mesavotacion = $votanteOld->mesavotacion;
+            //     $votante->fechapuesto = Carbon::now()->format('Y-m-d');
+            //     $votante->apiname = true;
+            //     $votante->fechaapiname=Carbon::now()->format('Y-m-d H:i:s');
+            //     $votante->estado=1;
+            //     $votante->save();
+            // }
                 $validados++;
             }
             //Actualizar cargue masivo
@@ -521,47 +586,50 @@ class VotanteController extends Controller
         $processed = 0;
         $updated = 0;
         $failed = 0;
-        $votantes=Votante::where('idcarguemasivo', $idcarguemasivo)->get();
+        $votantes=Votante::where('idcarguemasivo', $idcarguemasivo)
+        ->where(function($query) {
+            $query->whereNull('nombrecompleto')
+                  ->orWhere('nombrecompleto', '')
+                  ->orWhereNull('departamento')
+                  ->orWhere('departamento', '');
+        })->get();
+
         $processed=count($votantes);
+        $arrayNuips=[];
+        $mensaje='Operación se esta realizando en Segundo Plano Dar Click en Actualizar para ver el progreso';
         foreach ($votantes as $votante) {
-            if(!empty($votante->nombrecompleto)){
+            if(!empty($votante->nombrecompleto) && !empty($votante->departamento)){
                 continue;
             }
-            try {
-                $response = $client->post('http://localhost:8000/consultar-nombre', [
+            array_push($arrayNuips, $votante->numerodocumento);
+        }
+        if(count($arrayNuips) > 0){
+             try {
+                //obtenner url
+              $url = env('API_ELECTORAL') . '/consultar-nombres';
+                $response = $client->post($url, [
                     'headers' => [
                         'accept' => 'application/json',
                         'Content-Type' => 'application/json',
                     ],
                     'json' => [
-                        'nuip' => $votante->numerodocumento,
-                        'fecha_expedicion' => ''
+                        'nuips' => array_values($arrayNuips),
+                        'enviarapi'=>true
                     ]
                 ]);
                 if ($response->getStatusCode() != 200) {
-                    continue;
                 }
-
-                $respuesta = json_decode($response->getBody()->getContents());
-                $nombre_completo = $respuesta->name;
-                if ($votante) {
-                    $votante->update([
-                        'nombrecompleto' => $nombre_completo,
-                        'apiname' => true,
-                        'fechaapiname'=>Carbon::now()->format('Y-m-d H:i:s')
-                    ]);
-                    $updated++;
-                }
+            $respuesta = json_decode($response->getBody()->getContents());
             } catch (\GuzzleHttp\Exception\RequestException $e) {
                 $failed++;
-                continue;
             }
-
+        }else{
+            $mensaje="No hay votantes para actualizar";
         }
         $votantes=Votante::where('idcarguemasivo', $idcarguemasivo)->get();
         return response()->json([
             'code'=>200,
-            'message' => 'Operación Finalizada Exitosamente',
+            'message' => $mensaje,
             'exitosos' => $updated,
             'total' => $processed,
             'errores' => $failed,
@@ -583,5 +651,7 @@ class VotanteController extends Controller
             'data'=>$data
         ], Response::HTTP_OK);
     }
+
+
 
 }

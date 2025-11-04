@@ -6,11 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
-class Votante extends Model
+class VotanteOld extends Model
 {
     use HasFactory;
 
-    protected $table="votantes";
+    protected $table="votantes_old";
     protected $fillable = [
         'tipo_persona_id',
         'barrio_id',
@@ -202,39 +202,6 @@ class Votante extends Model
             and municipio='SINCELEJO' ", [$lider, $sublider]);
         }
     }
-
-    public static function validarConfirmacion($id, $puesto){
-
-
-         return Votante::where('id', $id)
-                ->with('lider')
-                ->with('sublider')
-                ->with('puesto')
-                ->with('user')
-                ->first();
-
-         //  if($puesto=='TODOS'){
-         //       return Votante::where('id', $id)
-         //       ->with('lider')
-         //       ->with('sublider')
-         //      ->with('puesto')
-          //      ->with('user')
-          //      ->first();
-          // }else{
-          //    return Votante::where('id', $id)
-          //    ->where('puestovotacion', $puesto)
-           // ->with('lider')
-          //  ->with('sublider')
-           // ->with('puesto')
-           // ->with('user')
-           // ->first();
-          // }
-    }
-
-    public static function getTotalConfirmadoUsuario($usuario){
-        return Votante::where('usuarioconfirma', $usuario)->count();
-    }
-
 
 
 
