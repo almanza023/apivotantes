@@ -19,7 +19,8 @@ class Persona extends Model
         'nombrecompleto',
         'telefono',
         'estado',
-        'deparatemento',
+        'departamento',
+        'direccion',
         'municipio',
         'municipio_id',
         'puestovotacion',
@@ -131,7 +132,7 @@ class Persona extends Model
 
     public static function getEstadisticas($documento){
         return DB::select("SELECT p.id, p.nombrecompleto, p.numerodocumento, p.telefono,
-        b.descripcion as barrio, t.descripcion as tipo, p.estado,
+        b.descripcion as barrio, t.descripcion as tipo, p.estado, p.departamento, p.municipio, p.puestovotacion, p.mesavotacion, p.direccion,
         (SELECT COUNT(*)  FROM votantes WHERE sublider_id=p.id) AS totalvotos,
         (SELECT nombrecompleto  FROM personas WHERE id=p.lider_id) AS lider
         FROM personas p

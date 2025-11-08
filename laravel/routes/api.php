@@ -45,12 +45,15 @@ Route::prefix('v1')->group(function () {
     Route::post('personas/listado', [PersonaController::class, 'personasSinPuesto']);
     Route::post('personas/puesto', [PersonaController::class, 'agregarPuesto']);
     Route::get('totaldigitadospersonas/{usuario}', [VotanteController::class, 'getDigitados']);
+    Route::post('personas/consultar', [VotanteController::class, 'consultarDatosPersona']);
+    Route::post('personas/consultar-nombre', [VotanteController::class, 'consultarNombre']);
 
     //Api Electoral
     Route::post('respuestanombreapi', [ApiRespuestaController::class, 'actualizarRespuestAPI']);
     Route::post('respuestapuestoapi', [ApiRespuestaController::class, 'actualizarPuestoRespuestAPI']);
 
     Route::get('votantes/{id}/{puesto}', [VotanteController::class, 'validarDocumentoConfirmacion']);
+    Route::post('votantes/consultar', [VotanteController::class, 'getDatosPersona']);
     Route::group(['middleware' => ['jwt.verify']], function () {
         //Todo lo que este dentro de este grupo requiere verificaci��n de usuario.
 

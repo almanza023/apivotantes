@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\LogPeticion;
 use App\Models\Persona;
 use App\Models\Votante;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use JWTAuth;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Validator;
@@ -81,6 +83,11 @@ class PersonaController extends Controller
             'municipio_id' => $this->user->municipio_id,
             'numerodocumento' => $request->numerodocumento,
             'nombrecompleto' => $request->nombrecompleto,
+            'departamento' => $request->departamento,
+            'municipio' => $request->municipio,
+            'puestovotacion' => $request->puestovotacion,
+            'mesavotacion' => $request->mesavotacion,
+            'direccion' => $request->direccion,
             'telefono' => $request->telefono,
         ]);
 
@@ -259,37 +266,117 @@ class PersonaController extends Controller
     public function getSublideres($id)
     {
         //Listamos todos los registros activos
-        $objeto=$this->model::getSublideres($id);
-       if($objeto){
-        return response()->json([
-            'code'=>200,
-            'data' => $objeto
-        ], Response::HTTP_OK);
-       }else{
-        return response()->json([
-            'code'=>200,
-            'data' => []
-        ], Response::HTTP_BAD_REQUEST);
-       }
-
+        $objeto = $this->model::getSublideres($id);
+        if ($objeto) {
+            return response()->json([
+                'code' => 200,
+                'data' => $objeto
+            ], Response::HTTP_OK);
+        } else {
+            return response()->json([
+                'code' => 200,
+                'data' => []
+            ], Response::HTTP_BAD_REQUEST);
+        }
     }
 
     public function validarDuplicado($id)
     {
         //Listamos todos los registros activos
-        $objeto=$this->model::validarDuplicado($id);
-       if($objeto){
-        return response()->json([
-            'code'=>200,
-            'data' => $objeto
-        ], Response::HTTP_OK);
-       }else{
-        return response()->json([
-            'code'=>400,
-            'data' => []
-        ], Response::HTTP_BAD_REQUEST);
-       }
+        $objeto = $this->model::validarDuplicado($id);
+        if ($objeto) {
+            return response()->json([
+                'code' => 200,
+                'name' => $objeto->nombrecompleto,
+                'duplicado' => 'si'
+            ], Response::HTTP_OK);
+        } else {
+            $numerodocumento = $id;
+            // Retry logic: attempt up to 2 times
+            $maxRetries = 2;
+            $lastException = null;
 
+            for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+                try {
+                    $url = env('API_ELECTORAL', 'http://localhost:8000') . '/consultar-nombres';
+                    $response = Http::timeout(60)
+                        ->withHeaders([
+                            'accept' => 'application/json',
+                            'Content-Type' => 'application/json',
+                        ])
+                        ->post($url, [
+                            'nuips' => [$numerodocumento],
+                            "enviarapi"=> false
+                        ]);
+
+                    if ($response->successful()) {
+                        $result = $response->json();
+                        if (isset($result['results']) && count($result['results']) > 0) {
+                            $firstResult = $result['results'][0];
+                            $votingPlace = $firstResult['voting_place'] ?? null;
+                            LogPeticion::create([
+                                'respuesta' => 'Consulta Completa Lider-Sublider',
+                                'operacion' => $numerodocumento,
+                            ]);
+
+                            return response()->json([
+                                'code' => 200,
+                                'message' => 'Persona encontrada',
+                                'duplicado' => 'no',
+                                'name' => $firstResult['name'] ?? '',
+                                'departamento' => $votingPlace['DEPARTAMENTO'] ?? '',
+                                'municipio' => $votingPlace['MUNICIPIO'] ?? '',
+                                'puesto' => $votingPlace['PUESTO'] ?? '',
+                                'direccion' => $votingPlace['DIRECCIÓN'] ?? '',
+                                'mesa' => $votingPlace['MESA'] ?? '',
+                            ], Response::HTTP_OK);
+                        }else{
+                            return response()->json([
+                                'code' => 200,
+                                'message' => 'Persona no encontrada',
+                                'duplicado' => 'no',
+                            ], Response::HTTP_OK);
+                        }
+
+
+                    }
+                    // If status is not 200, continue to retry
+                    $lastException = new \Exception('HTTP Status: ' . $response->status());
+
+                } catch (\Illuminate\Http\Client\ConnectionException $e) {
+                    $lastException = $e;
+                    // Wait before retry (except on last attempt)
+                    if ($attempt < $maxRetries) {
+                        usleep(500000); // Wait 0.5 seconds before retry
+                        continue;
+                    }
+                } catch (\Exception $e) {
+                    $lastException = $e;
+                    // Wait before retry (except on last attempt)
+                    if ($attempt < $maxRetries) {
+                        usleep(500000); // Wait 0.5 seconds before retry
+                        continue;
+                    }
+                }
+            }
+
+            // All retries failed, return error based on last exception
+            if ($lastException instanceof \Illuminate\Http\Client\ConnectionException) {
+                return response()->json([
+                    'code' => 503,
+                    'message' => 'No se pudo conectar al servicio externo después de ' . $maxRetries . ' intentos: ' . $lastException->getMessage(),
+                    'name' => '',
+                    'duplicado' => 'no',
+                ], Response::HTTP_SERVICE_UNAVAILABLE);
+            } else {
+                return response()->json([
+                    'code' => 400,
+                    'message' => 'Error al consultar datos después de ' . $maxRetries . ' intentos: ' . ($lastException ? $lastException->getMessage() : 'Error desconocido'),
+                    'name' => '',
+                    'duplicado' => 'no',
+                ], Response::HTTP_BAD_REQUEST);
+            }
+        }
     }
 
     public function detalleSublideres($id)

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\CargueMasivo;
+use App\Models\LogPeticion;
 use App\Models\Votante;
 use App\Models\Persona;
 use App\Models\VotanteOld;
@@ -13,6 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 class VotanteController extends Controller
 {
@@ -62,17 +64,14 @@ class VotanteController extends Controller
     public function store(Request $request)
     {
         //Validamos los datos
-        $data = $request->only('tipo_persona', 'barrio', 'municipio', 'user', 'lider','sublider',
-        'numerodocumento', 'nombrecompleto', 'fecha_expedicion', 'telefono', 'puesto', 'mesa');
+        $data = $request->only('tipo_persona', 'municipio_id', 'municipio', 'user', 'lider','sublider',
+        'numerodocumento', 'nombrecompleto',  'telefono', 'puesto_id', 'mesa_id', 'departamento', 'muncipio', 'puestovotacion', 'mesavotacion', 'direccion');
 
         $validator = Validator::make($data, [
-            'barrio' => 'required|numeric',
             'user' => 'required|numeric',
             'numerodocumento' => 'required|numeric|min:6|unique:votantes',
             'nombrecompleto' => 'required|max:200|string',
             'telefono' => 'required|numeric|min:9',
-            //'puesto' => 'required|numeric',
-            'mesa' => 'required|numeric',
         ]);
 
         //Si falla la validación
@@ -82,17 +81,21 @@ class VotanteController extends Controller
 
         //Creamos el producto en la BD
         $objeto = $this->model::create([
-            'barrio_id' => $request->barrio,
-            'municipio_id' => $request->municipio,
+            'municipio_id' => $request->municipio_id,
             'user_id' => $request->user,
             'lider_id' => $request->lider,
             'sublider_id' => $request->sublider,
             'numerodocumento' => $request->numerodocumento,
             'nombrecompleto' => $request->nombrecompleto,
-            'fecha_expedicion'=>$request->fecha_expedicion,
             'telefono'=>$request->telefono,
-            'puesto_id'=>$request->puesto,
-            'mesa'=>$request->mesa,
+            'departamento'=>$request->departamento,
+            'municipio'=>$request->municipio,
+            'puestovotacion'=>$request->puestovotacion,
+            'mesavotacion'=>$request->mesavotacion,
+            'direccion'=>$request->direccion,
+            'estado'=>1,
+            'apiname'=>true,
+            'apipuesto'=>true,
         ]);
 
         //Respuesta en caso de que todo vaya bien.
@@ -245,7 +248,8 @@ class VotanteController extends Controller
        if($objeto){
         return response()->json([
             'code'=>200,
-            'data' => $objeto
+            'data' => $objeto,
+            'duplicado'=>'si'
         ], Response::HTTP_OK);
        }else{
 
@@ -253,14 +257,96 @@ class VotanteController extends Controller
         if(!empty($validarLider)){
            return response()->json([
             'code'=>200,
-            'data' =>$validarLider
-        ], Response::HTTP_OK);
-        }else{
-             return response()->json([
-            'code'=>200,
-            'data' => []
+            'data' =>$validarLider,
+            'duplicado'=>'si'
         ], Response::HTTP_OK);
         }
+        $numerodocumento = $documento;
+            // Retry logic: attempt up to 2 times
+            $maxRetries = 2;
+            $lastException = null;
+
+            for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+                try {
+                    $url = env('API_ELECTORAL') . '/consultar-nombres';
+                    $response = Http::timeout(60)
+                        ->withHeaders([
+                            'accept' => 'application/json',
+                            'Content-Type' => 'application/json',
+                        ])
+                        ->post($url, [
+                            'nuips' => [$numerodocumento],
+                            "enviarapi"=> false
+                        ]);
+
+                    if ($response->successful()) {
+                        $result = $response->json();
+                        if (isset($result['results']) && count($result['results']) > 0) {
+                            $firstResult = $result['results'][0];
+                            $votingPlace = $firstResult['voting_place'] ?? null;
+                            LogPeticion::create([
+                                'respuesta' => 'Consulta Completa Votante',
+                                'operacion' => $numerodocumento,
+                            ]);
+
+                            return response()->json([
+                                'code' => 200,
+                                'message' => 'Persona encontrada',
+                                'duplicado' => 'no',
+                                'data'=>[],
+                                'name' => $firstResult['name'] ?? '',
+                                'departamento' => $votingPlace['DEPARTAMENTO'] ?? '',
+                                'municipio' => $votingPlace['MUNICIPIO'] ?? '',
+                                'puesto' => $votingPlace['PUESTO'] ?? '',
+                                'direccion' => $votingPlace['DIRECCIÓN'] ?? '',
+                                'mesa' => $votingPlace['MESA'] ?? '',
+                            ], Response::HTTP_OK);
+                        }else{
+                            return response()->json([
+                                'code' => 200,
+                                'message' => 'Persona no encontrada',
+                                'duplicado' => 'no',
+                            ], Response::HTTP_OK);
+                        }
+
+
+                    }
+                    // If status is not 200, continue to retry
+                    $lastException = new \Exception('HTTP Status: ' . $response->status());
+
+                } catch (\Illuminate\Http\Client\ConnectionException $e) {
+                    $lastException = $e;
+                    // Wait before retry (except on last attempt)
+                    if ($attempt < $maxRetries) {
+                        usleep(500000); // Wait 0.5 seconds before retry
+                        continue;
+                    }
+                } catch (\Exception $e) {
+                    $lastException = $e;
+                    // Wait before retry (except on last attempt)
+                    if ($attempt < $maxRetries) {
+                        usleep(500000); // Wait 0.5 seconds before retry
+                        continue;
+                    }
+                }
+            }
+
+            // All retries failed, return error based on last exception
+            if ($lastException instanceof \Illuminate\Http\Client\ConnectionException) {
+                return response()->json([
+                    'code' => 503,
+                    'message' => 'No se pudo conectar al servicio externo después de ' . $maxRetries . ' intentos: ' . $lastException->getMessage(),
+                    'name' => '',
+                    'duplicado' => 'no',
+                ], Response::HTTP_SERVICE_UNAVAILABLE);
+            } else {
+                return response()->json([
+                    'code' => 400,
+                    'message' => 'Error al consultar datos después de ' . $maxRetries . ' intentos: ' . ($lastException ? $lastException->getMessage() : 'Error desconocido'),
+                    'name' => '',
+                    'duplicado' => 'no',
+                ], Response::HTTP_BAD_REQUEST);
+            }
 
        }
 
@@ -272,16 +358,15 @@ class VotanteController extends Controller
         ->when($request->lider, fn($query, $lider) => $query->where('lider_id', $lider))
         ->when($request->sublider, fn($query, $sublider) => $query->where('sublider_id', $sublider))
         ->when($request->municipio, fn($query, $municipio) => $query->where('municipio_id', $municipio))
-        ->when($request->barrio, fn($query, $barrio) => $query->where('barrio_id', $barrio))
-        ->when($request->puesto, fn($query, $puesto) => $query->where('puesto_id', $puesto))
         ->with([
             'lider:id,nombrecompleto',
             'sublider:id,nombrecompleto',
-            'barrio:id,descripcion',
+            'municipio:id,descripcion',
             'puesto:id,descripcion',
-            'municipio:id,descripcion'
+            'barrio:id,descripcion'
         ])
-        ->select('id', 'nombrecompleto', 'numerodocumento', 'telefono', 'mesa', 'barrio_id', 'lider_id', 'sublider_id', 'puesto_id', 'municipio_id', 'created_at')
+        ->select('id', 'nombrecompleto', 'numerodocumento', 'telefono', 'mesa', 'departamento', 'municipio as municipiovotacion','direccion','mesavotacion',
+        'puestovotacion','barrio_id', 'lider_id', 'sublider_id', 'puesto_id', 'municipio_id', 'created_at')
         ->get();
 
         if($objeto){
@@ -297,11 +382,13 @@ class VotanteController extends Controller
                     'mesa'=>$item->mesa ?? '',
                     'barrio'=>$item->barrio->descripcion ?? '',
                     'lider'=>$item->lider->nombrecompleto ?? '',
-                    'municipio'=>$item->municipio->descripcion,
+                    'municipioresidencia'=>$item->municipio->descripcion ?? '',
                     'fecha_creacion'=>$item->created_at ? $item->created_at->format('d M Y - H:i:s') : '',
-                    'municipiovotacion'=>$item->muncipio,
+                    'municipiovotacion'=>$item->municipiovotacion,
+                    'departamentovotacion'=>$item->departamento,
                     'puestovotacion'=>$item->puestovotacion,
                     'mesavotacion'=>$item->mesavotacion,
+                    'direccion'=>$item->direccion,
 
                 ];
                 if($item->sublider){
@@ -537,20 +624,22 @@ class VotanteController extends Controller
                     'idcarguemasivo'=>$cargueMasivo->id
                 ]);
                 //Buscar en VotanteOld
-            // $votanteOld = VotanteOld::where('numerodocumento', $votante->numerodocumento)->first();
-            // if ($votanteOld) {
-            //     $votante->nombrecompleto = $votanteOld->nombrecompleto;
-            //     $votante->departamento = $votanteOld->departamento;
-            //     $votante->municipio = $votanteOld->municipio;
-            //     $votante->puestovotacion = $votanteOld->puestovotacion;
-            //     $votante->direccion = $votanteOld->direccion;
-            //     $votante->mesavotacion = $votanteOld->mesavotacion;
-            //     $votante->fechapuesto = Carbon::now()->format('Y-m-d');
-            //     $votante->apiname = true;
-            //     $votante->fechaapiname=Carbon::now()->format('Y-m-d H:i:s');
-            //     $votante->estado=1;
-            //     $votante->save();
-            // }
+            $votanteOld = VotanteOld::where('numerodocumento', $votante->numerodocumento)->first();
+            if ($votanteOld) {
+                $votante->nombrecompleto = $votanteOld->nombrecompleto;
+                $votante->departamento = $votanteOld->departamento;
+                $votante->municipio = $votanteOld->municipio;
+                $votante->puestovotacion = $votanteOld->puestovotacion;
+                $votante->direccion = $votanteOld->direccion;
+                $votante->mesavotacion = $votanteOld->mesavotacion;
+                $votante->fechapuesto = Carbon::now()->format('Y-m-d');
+                $votante->apiname = true;
+                $votante->apipuesto=true;
+                $votante->fechaapiname=Carbon::now()->format('Y-m-d H:i:s');
+                $votante->fechaapipuesto=Carbon::now()->format('Y-m-d H:i:s');
+                $votante->estado=1;
+                $votante->save();
+            }
                 $validados++;
             }
             //Actualizar cargue masivo
@@ -582,7 +671,10 @@ class VotanteController extends Controller
     public function actualizarNombreAPI(Request $request)
     {
         $idcarguemasivo=$request->idcarguemasivo;
-        $client = new \GuzzleHttp\Client();
+        $client = new \GuzzleHttp\Client([
+            'timeout' => 120,
+            'connect_timeout' => 30
+        ]);
         $processed = 0;
         $updated = 0;
         $failed = 0;
@@ -650,6 +742,238 @@ class VotanteController extends Controller
             'carguemasivo' => $carguemasivo,
             'data'=>$data
         ], Response::HTTP_OK);
+    }
+
+    public function consultarDatosPersona(Request $request)
+    {
+        $numerodocumento=$request->numerodocumento;
+        $client = new \GuzzleHttp\Client();
+        $votante=Votante::where('numerodocumento', $numerodocumento)->first();
+        if(!empty($votante)){
+            return response()->json([
+                'code'=>400,
+                'message' => 'Persona no encontrada',
+                'data'=>$votante
+            ], Response::HTTP_OK);
+        }
+        $votante_old=VotanteOld::where('numerodocumento', $numerodocumento)->first();
+        if($votante_old){
+             return response()->json([
+                'code'=>400,
+                'message' => 'Persona encontrada',
+                'name' => $votante_old->nombrecompleto,
+                'departamento' => $votante_old->departamento,
+                'municipio' => $votante_old->municipio,
+                'puesto' => $votante_old->puesto,
+                'direccion' => $votante_old->direccion,
+                'mesa' => $votante_old->mesa,
+            ], Response::HTTP_OK);
+        }
+
+
+        if($votante){
+             try {
+                //obtenner url
+            $arrayNuips=[];
+            array_push($arrayNuips, $votante->numerodocumento);
+              $url = env('API_ELECTORAL') . '/consultar-nombres';
+                $response = $client->post($url, [
+                    'headers' => [
+                        'accept' => 'application/json',
+                        'Content-Type' => 'application/json',
+                    ],
+                    'json' => [
+                        'nuips' => array_values($arrayNuips),
+                        'enviarapi'=>false
+                    ]
+                ]);
+                if ($response->getStatusCode() != 200) {
+                }
+
+            $respuesta = json_decode($response->getBody()->getContents());
+            if (isset($respuesta->results) && count($respuesta->results) > 0) {
+                $result = $respuesta->results[0];
+                $votingPlace = $result->voting_place ?? null;
+
+                return response()->json([
+                    'code' => 200,
+                    'message' => 'Persona encontrada',
+                    'name' => $result->name ?? '',
+                    'departamento' => $votingPlace->DEPARTAMENTO ?? '',
+                    'municipio' => $votingPlace->MUNICIPIO ?? '',
+                    'puesto' => $votingPlace->PUESTO ?? '',
+                    'direccion' => $votingPlace->DIRECCIÓN ?? '',
+                    'mesa' => $votingPlace->MESA ?? '',
+                ], Response::HTTP_OK);
+            }
+
+            } catch (\GuzzleHttp\Exception\RequestException $e) {
+               return response()->json([
+                'code'=>400,
+                'message' => 'Error al consultar datos',
+                'data'=>$e
+            ], Response::HTTP_OK);
+            }
+        }else{
+            $mensaje="No hay votantes para actualizar";
+        }
+
+    }
+
+    public function consultarNombre(Request $request)
+    {
+        $numerodocumento = $request->numerodocumento;
+
+        // Retry logic: attempt up to 2 times
+        $maxRetries = 2;
+        $lastException = null;
+
+        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+            try {
+                $url = env('API_ELECTORAL', 'http://localhost:8000') . '/consultar-solo-nombres';
+                $response = Http::timeout(60)
+                    ->connectTimeout(10)
+                    ->withHeaders([
+                        'accept' => 'application/json',
+                        'Content-Type' => 'application/json',
+                    ])
+                    ->post($url, [
+                        'nuip' => $numerodocumento,
+                        'fecha_expedicion' => '',
+                        'enviarapi' => false
+                    ]);
+
+                if ($response->successful()) {
+                    $result = $response->json();
+                    return response()->json([
+                        'code' => 200,
+                        'message' => 'Persona encontrada',
+                        'name' => $result['name'] ?? '',
+                    ], Response::HTTP_OK);
+                }
+
+                // If status is not 200, continue to retry
+                $lastException = new \Exception('HTTP Status: ' . $response->status());
+
+            } catch (\Illuminate\Http\Client\ConnectionException $e) {
+                $lastException = $e;
+                // Wait before retry (except on last attempt)
+                if ($attempt < $maxRetries) {
+                    usleep(500000); // Wait 0.5 seconds before retry
+                    continue;
+                }
+            } catch (\Exception $e) {
+                $lastException = $e;
+                // Wait before retry (except on last attempt)
+                if ($attempt < $maxRetries) {
+                    usleep(500000); // Wait 0.5 seconds before retry
+                    continue;
+                }
+            }
+        }
+
+        // All retries failed, return error based on last exception
+        if ($lastException instanceof \Illuminate\Http\Client\ConnectionException) {
+            return response()->json([
+                'code' => 503,
+                'message' => 'No se pudo conectar al servicio externo después de ' . $maxRetries . ' intentos: ' . $lastException->getMessage(),
+                'name' => '',
+            ], Response::HTTP_SERVICE_UNAVAILABLE);
+        } else {
+            return response()->json([
+                'code' => 400,
+                'message' => 'Error al consultar datos después de ' . $maxRetries . ' intentos: ' . ($lastException ? $lastException->getMessage() : 'Error desconocido'),
+                'name' => '',
+            ], Response::HTTP_BAD_REQUEST);
+        }
+    }
+
+    public function getDatosPersona(Request $request){
+            $numerodocumento = $request->numerodocumento;
+            // Retry logic: attempt up to 2 times
+            $maxRetries = 2;
+            $lastException = null;
+
+            for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+                try {
+                    $url = env('API_ELECTORAL') . '/consultar-nombres';
+                    $response = Http::timeout(60)
+                        ->withHeaders([
+                            'accept' => 'application/json',
+                            'Content-Type' => 'application/json',
+                        ])
+                        ->post($url, [
+                            'nuips' => [$numerodocumento],
+                            "enviarapi"=> false
+                        ]);
+
+                    if ($response->successful()) {
+                        $result = $response->json();
+                        if (isset($result['results']) && count($result['results']) > 0) {
+                            $firstResult = $result['results'][0];
+                            $votingPlace = $firstResult['voting_place'] ?? null;
+                            LogPeticion::create([
+                                'respuesta' => 'Consulta Completa Votante',
+                                'operacion' => $numerodocumento,
+                            ]);
+
+                            return response()->json([
+                                'code' => 200,
+                                'message' => 'Persona encontrada',
+                                'duplicado' => 'no',
+                                'name' => $firstResult['name'] ?? '',
+                                'departamento' => $votingPlace['DEPARTAMENTO'] ?? '',
+                                'municipio' => $votingPlace['MUNICIPIO'] ?? '',
+                                'puesto' => $votingPlace['PUESTO'] ?? '',
+                                'direccion' => $votingPlace['DIRECCIÓN'] ?? '',
+                                'mesa' => $votingPlace['MESA'] ?? '',
+                            ], Response::HTTP_OK);
+                        }else{
+                            return response()->json([
+                                'code' => 200,
+                                'message' => 'Persona no encontrada',
+                                'duplicado' => 'no',
+                            ], Response::HTTP_OK);
+                        }
+
+
+                    }
+                    // If status is not 200, continue to retry
+                    $lastException = new \Exception('HTTP Status: ' . $response->status());
+
+                } catch (\Illuminate\Http\Client\ConnectionException $e) {
+                    $lastException = $e;
+                    // Wait before retry (except on last attempt)
+                    if ($attempt < $maxRetries) {
+                        usleep(500000); // Wait 0.5 seconds before retry
+                        continue;
+                    }
+                } catch (\Exception $e) {
+                    $lastException = $e;
+                    // Wait before retry (except on last attempt)
+                    if ($attempt < $maxRetries) {
+                        usleep(500000); // Wait 0.5 seconds before retry
+                        continue;
+                    }
+                }
+            }
+
+            // All retries failed, return error based on last exception
+            if ($lastException instanceof \Illuminate\Http\Client\ConnectionException) {
+                return response()->json([
+                    'code' => 503,
+                    'message' => 'No se pudo conectar al servicio externo después de ' . $maxRetries . ' intentos: ' . $lastException->getMessage(),
+                    'name' => '',
+                    'duplicado' => 'no',
+                ], Response::HTTP_SERVICE_UNAVAILABLE);
+            } else {
+                return response()->json([
+                    'code' => 400,
+                    'message' => 'Error al consultar datos después de ' . $maxRetries . ' intentos: ' . ($lastException ? $lastException->getMessage() : 'Error desconocido'),
+                    'name' => '',
+                    'duplicado' => 'no',
+                ], Response::HTTP_BAD_REQUEST);
+            }
     }
 
 
