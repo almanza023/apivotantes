@@ -78,6 +78,7 @@ class VotanteController extends Controller
         if ($validator->fails()) {
             return response()->json(['error' => $validator->messages()], 400);
         }
+        
 
         //Creamos el producto en la BD
         $objeto = $this->model::create([

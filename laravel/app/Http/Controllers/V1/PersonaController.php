@@ -74,13 +74,18 @@ class PersonaController extends Controller
         if ($validator->fails()) {
             return response()->json(['error' => $validator->messages()], 400);
         }
+        $municipio_id=$this->user->municipio_id;
+        
+        if($this->user->municipio_id==0 || $this->user->municipio_id==null){
+            $municipio_id=$request->municipio_id;
+        }
 
         //Creamos el producto en la BD
         $objeto = $this->model::create([
             'tipo_persona_id' => $request->tipo_persona,
             'barrio_id' => $request->barrio,
             'lider_id' => $request->lider,
-            'municipio_id' => $this->user->municipio_id,
+            'municipio_id' => $municipio_id,
             'numerodocumento' => $request->numerodocumento,
             'nombrecompleto' => $request->nombrecompleto,
             'departamento' => $request->departamento,
@@ -89,6 +94,7 @@ class PersonaController extends Controller
             'mesavotacion' => $request->mesavotacion,
             'direccion' => $request->direccion,
             'telefono' => $request->telefono,
+            'usuariosube' => $this->user->username,
         ]);
 
         //Respuesta en caso de que todo vaya bien.

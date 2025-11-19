@@ -109,6 +109,8 @@ class Persona extends Model
         }
         return DB::select("SELECT p.id, p.nombrecompleto, p.numerodocumento, p.telefono,
         b.descripcion as barrio, t.descripcion as tipo, p.estado, m.descripcion as municipio, m.id as municipio_id,
+        p.departamento as departamentovotacion, p.municipio as municipiovotacion, p.puestovotacion as puestovotacion,
+        p.mesavotacion as mesavotacion, p.direccion,
         (SELECT COUNT(*)  FROM personas WHERE tipo_persona_id=2 and lider_id=p.id) AS totalsublideres,
         (SELECT COUNT(*)  FROM votantes WHERE lider_id=p.id) AS totalvotos,
         (SELECT COUNT(*)  FROM votantes WHERE lider_id=p.id and confirmado='SI') AS confirmados
@@ -123,6 +125,8 @@ class Persona extends Model
     public static function getDataSubLideres($id){
         return DB::select("SELECT p.id, p.nombrecompleto, p.numerodocumento, p.telefono,
         b.descripcion as barrio, p.estado, p.tipo_persona_id as tipo_id,
+        p.departamento as departamentovotacion, p.municipio as municipiovotacion, p.puestovotacion as puestovotacion,
+        p.mesavotacion as mesavotacion, p.direccion,
         (SELECT COUNT(*)  FROM votantes WHERE sublider_id=p.id) AS totalvotos
         FROM personas p
         INNER JOIN barrios b ON (p.barrio_id=b.id)
