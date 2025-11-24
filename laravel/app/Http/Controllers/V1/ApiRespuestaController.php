@@ -27,23 +27,61 @@ class ApiRespuestaController extends Controller
 
     }
 
-    public function actualizarRespuestAPI(Request $request){
-        $documento=$request->numerodocumento;
-        $nombrecompleto=$request->nombrecompleto;
-        $departamento=$request->departamento;
-        $municipio=$request->municipio;
-        $puesto=$request->puesto;
-        $mesa=$request->mesa;
-        $direccion=$request->direccion;
+    public function actualizarRespuestAPI(Request $request)
+    {
+        $documento = $request->numerodocumento;
+        $nombrecompleto = $request->nombrecompleto;
+        $departamento = $request->departamento;
+        $municipio = $request->municipio;
+        $puesto = $request->puesto;
+        $mesa = $request->mesa;
+        $direccion = $request->direccion;
 
-        $votante=Votante::where('numerodocumento', $documento)->first();
-        if($votante && empty($votante->nombrecompleto)){
+        $votante = Votante::where('numerodocumento', $documento)->first();
+        if ($votante && empty($votante->nombrecompleto)) {
             $votante->update([
-                'nombrecompleto' => $nombrecompleto,
+                'nombrecompleto' => $votante->nombrecompleto,
                 'apiname' => true,
-                'fechaapiname'=>Carbon::now()->format('Y-m-d H:i:s')
+                'fechaapiname' => Carbon::now()->format('Y-m-d H:i:s')
             ]);
-            if(!empty($departamento)){
+
+            if (!empty($departamento)) {
+                $votante->update([
+                    'nombrecompleto' => $nombrecompleto,
+                    'departamento' => $departamento,
+                    'municipio' => $municipio,
+                    'puestovotacion' => $puesto,
+                    'mesavotacion' => $mesa,
+                    'direccion' => $direccion,
+                    'apipuesto' => true,
+                    'fechaapipuesto' => Carbon::now()->format('Y-m-d H:i:s')
+                ]);
+            }
+
+            return response()->json([
+                'status' => 'ok',
+                'message' => 'Operación Finalizada Exitosamente',
+            ], Response::HTTP_OK);
+        } else {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No se actualizó',
+            ], Response::HTTP_OK);
+        }
+    }
+
+    public function actualizarPuestoRespuestAPI(Request $request)
+    {
+        $documento = $request->numerodocumento;
+        $departamento = $request->departamento;
+        $municipio = $request->municipio;
+        $puesto = $request->puesto;
+        $mesa = $request->mesa;
+        $direccion = $request->direccion;
+
+        $votante = Votante::where('numerodocumento', $documento)->first();
+        if ($votante) {
+            if (!empty($departamento)) {
                 $votante->update([
                     'departamento' => $departamento,
                     'municipio' => $municipio,
@@ -51,54 +89,18 @@ class ApiRespuestaController extends Controller
                     'mesavotacion' => $mesa,
                     'direccion' => $direccion,
                     'apipuesto' => true,
-                    'fechaapipuesto'=>Carbon::now()->format('Y-m-d H:i:s')
-                ]);
-            }
-
-            return response()->json([
-            'status'=>'ok',
-            'message' => 'Operación Finalizada Exitosamente',
-        ], Response::HTTP_OK);
-        }else{
-            return response()->json([
-            'status'=>'error',
-            'message' => 'No se actualizó',
-        ], Response::HTTP_OK);
-        }
-    }
-
-    public function actualizarPuestoRespuestAPI(Request $request){
-        $documento=$request->numerodocumento;
-        $departamento=$request->departamento;
-        $municipio=$request->municipio;
-        $puesto=$request->puesto;
-        $mesa=$request->mesa;
-        $direccion=$request->direccion;
-
-        $votante=Votante::where('numerodocumento', $documento)->first();
-        if($votante){
-            if(!empty($departamento)){
-                $votante->update([
-                    'departamento' => $departamento,
-                    'municipio' => $municipio,
-                    'puestovotacion' => $puesto,
-                    'mesavotacion' => $mesa,
-                    'direccion' => $direccion,
-                    'apipuesto' => true,
-                    'fechaapipuesto'=>Carbon::now()->format('Y-m-d H:i:s')
+                    'fechaapipuesto' => Carbon::now()->format('Y-m-d H:i:s')
                 ]);
             }
             return response()->json([
-            'status'=>'ok',
-            'message' => 'Operación Finalizada Exitosamente',
-        ], Response::HTTP_OK);
-        }else{
+                'status' => 'ok',
+                'message' => 'Operación Finalizada Exitosamente',
+            ], Response::HTTP_OK);
+        } else {
             return response()->json([
-            'status'=>'error',
-            'message' => 'No se actualizó',
-        ], Response::HTTP_OK);
+                'status' => 'error',
+                'message' => 'No se actualizó',
+            ], Response::HTTP_OK);
         }
     }
-
-
 }

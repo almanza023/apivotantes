@@ -22,8 +22,8 @@ class PersonaController extends Controller
     public function __construct(Request $request)
     {
         $token = $request->header('Authorization');
-        $this->model=Persona::class;
-        if($token != '')
+        $this->model = Persona::class;
+        if ($token != '')
             //En caso de que requiera autentifiación la ruta obtenemos el usuario y lo almacenamos en una variable, nosotros no lo utilizaremos.
             $this->user = JWTAuth::parseToken()->authenticate();
     }
@@ -37,18 +37,18 @@ class PersonaController extends Controller
     {
 
         //Listamos todos los productos
-        $objeto=$this->model::getDataLideres($this->user->municipio_id);
-       if($objeto){
-        return response()->json([
-            'code'=>200,
-            'data' => $objeto
-        ], Response::HTTP_OK);
-       }else{
-        return response()->json([
-            'code'=>200,
-            'data' => []
-        ], Response::HTTP_OK);
-       }
+        $objeto = $this->model::getDataLideres($this->user->municipio_id);
+        if ($objeto) {
+            return response()->json([
+                'code' => 200,
+                'data' => $objeto
+            ], Response::HTTP_OK);
+        } else {
+            return response()->json([
+                'code' => 200,
+                'data' => []
+            ], Response::HTTP_OK);
+        }
     }
 
 
@@ -61,8 +61,15 @@ class PersonaController extends Controller
     public function store(Request $request)
     {
         //Validamos los datos
-        $data = $request->only('tipo_persona', 'barrio', 'numerodocumento',
-        'nombrecompleto', 'telefono', 'lider', 'municipio_id');
+        $data = $request->only(
+            'tipo_persona',
+            'barrio',
+            'numerodocumento',
+            'nombrecompleto',
+            'telefono',
+            'lider',
+            'municipio_id'
+        );
         $validator = Validator::make($data, [
             'tipo_persona' => 'required|numeric',
             'barrio' => 'required|numeric',
@@ -74,10 +81,10 @@ class PersonaController extends Controller
         if ($validator->fails()) {
             return response()->json(['error' => $validator->messages()], 400);
         }
-        $municipio_id=$this->user->municipio_id;
-        
-        if($this->user->municipio_id==0 || $this->user->municipio_id==null){
-            $municipio_id=$request->municipio_id;
+        $municipio_id = $this->user->municipio_id;
+
+        if ($this->user->municipio_id == 0 || $this->user->municipio_id == null) {
+            $municipio_id = $request->municipio_id;
         }
 
         //Creamos el producto en la BD
@@ -99,7 +106,7 @@ class PersonaController extends Controller
 
         //Respuesta en caso de que todo vaya bien.
         return response()->json([
-            'code'=>200,
+            'code' => 200,
             'message' => 'Registro Creado Exitosamente',
             'data' => $objeto
         ], Response::HTTP_OK);
@@ -113,22 +120,22 @@ class PersonaController extends Controller
      */
     public function show($id)
     {
-       //Bucamos el producto
-       $objeto = $this->model::find($id);
+        //Bucamos el producto
+        $objeto = $this->model::find($id);
 
-       //Si el producto no existe devolvemos error no encontrado
-       if (!$objeto) {
-           return response()->json([
-               'code'=>200,
-               'message' => 'Registro no encontrado en la base de datos.'
-           ], 404);
-       }
+        //Si el producto no existe devolvemos error no encontrado
+        if (!$objeto) {
+            return response()->json([
+                'code' => 200,
+                'message' => 'Registro no encontrado en la base de datos.'
+            ], 404);
+        }
 
-       //Si hay producto lo devolvemos
-       return response()->json([
-           'code'=>200,
-           'data' => $objeto
-       ], Response::HTTP_OK);
+        //Si hay producto lo devolvemos
+        return response()->json([
+            'code' => 200,
+            'data' => $objeto
+        ], Response::HTTP_OK);
     }
 
 
@@ -142,8 +149,15 @@ class PersonaController extends Controller
     public function update(Request $request, $id)
     {
         //Validación de datos
-        $data = $request->only('tipo_persona', 'barrio', 'numerodocumento',
-        'nombrecompleto', 'telefono', 'lider', 'municipio_id');
+        $data = $request->only(
+            'tipo_persona',
+            'barrio',
+            'numerodocumento',
+            'nombrecompleto',
+            'telefono',
+            'lider',
+            'municipio_id'
+        );
         $validator = Validator::make($data, [
             'telefono' => 'required',
             'nombrecompleto' => 'required|max:200|string',
@@ -165,7 +179,7 @@ class PersonaController extends Controller
 
         //Respuesta en caso de que todo vaya bien.
         return response()->json([
-            'code'=>200,
+            'code' => 200,
             'message' => 'Registro Actualizado Exitosamente',
             'data' => $objeto
         ], Response::HTTP_OK);
@@ -182,29 +196,29 @@ class PersonaController extends Controller
         //Buscamos el producto
         $objeto = $this->model::findOrfail($id);
 
-        $votantesLider=count(Votante::where('lider_id', $id)->get());
-        $votantesSublider=count(Votante::where('sublider_id', $id)->get());
-        $eliminar=false;
-        if($votantesLider==0){
-            $eliminar=true;
+        $votantesLider = count(Votante::where('lider_id', $id)->get());
+        $votantesSublider = count(Votante::where('sublider_id', $id)->get());
+        $eliminar = false;
+        if ($votantesLider == 0) {
+            $eliminar = true;
         }
-        if($votantesSublider==0){
-            $eliminar=true;
+        if ($votantesSublider == 0) {
+            $eliminar = true;
         }
-       if($eliminar){
-             //Eliminamos el producto
+        if ($eliminar) {
+            //Eliminamos el producto
             $objeto->delete();
             //Devolvemos la respuesta
             return response()->json([
-                'code'=>200,
+                'code' => 200,
                 'message' => 'Registro Eliminado'
             ], Response::HTTP_OK);
-       }else{
-        return response()->json([
-            'code'=>400,
-            'message' => 'No se puede eliminar por que tiene Votantes asociados '
-        ], Response::HTTP_OK);
-       }
+        } else {
+            return response()->json([
+                'code' => 400,
+                'message' => 'No se puede eliminar por que tiene Votantes asociados '
+            ], Response::HTTP_OK);
+        }
     }
 
     public function cambiarEstado(Request $request)
@@ -212,22 +226,23 @@ class PersonaController extends Controller
         //Validación de datos
         $data = $request->only('id');
         $validator = Validator::make($data, [
-            'id' => 'required'          ]);
+            'id' => 'required'
+        ]);
         //Si falla la validación error.
         if ($validator->fails()) {
             return response()->json(['error' => $validator->messages()], 400);
         }
         $objeto = $this->model::findOrfail($request->id);
-        if($objeto->estado==1){
-            $objeto->estado=2;
+        if ($objeto->estado == 1) {
+            $objeto->estado = 2;
             $objeto->save();
-        }else{
-            $objeto->estado=1;
+        } else {
+            $objeto->estado = 1;
             $objeto->save();
         }
         //Devolvemos los datos actualizados.
         return response()->json([
-            'code'=>200,
+            'code' => 200,
             'message' => 'Estado Actualizado Extiosamente',
             'data' => $objeto
         ], Response::HTTP_OK);
@@ -236,37 +251,35 @@ class PersonaController extends Controller
     public function activos()
     {
         //Listamos todos los registros activos
-        $objeto=$this->model::get();
-       if($objeto){
-        return response()->json([
-            'code'=>200,
-            'data' => $objeto
-        ], Response::HTTP_OK);
-       }else{
-        return response()->json([
-            'code'=>200,
-            'data' => []
-        ], Response::HTTP_BAD_REQUEST);
-       }
-
+        $objeto = $this->model::get();
+        if ($objeto) {
+            return response()->json([
+                'code' => 200,
+                'data' => $objeto
+            ], Response::HTTP_OK);
+        } else {
+            return response()->json([
+                'code' => 200,
+                'data' => []
+            ], Response::HTTP_BAD_REQUEST);
+        }
     }
 
     public function showLideresySublideres($id)
     {
         //Listamos todos los registros activos
-        $objeto=$this->model::getLideresySublider($id, $this->user->municipio_id);
-       if($objeto){
-        return response()->json([
-            'code'=>200,
-            'data' => $objeto
-        ], Response::HTTP_OK);
-       }else{
-        return response()->json([
-            'code'=>200,
-            'data' => []
-        ], Response::HTTP_BAD_REQUEST);
-       }
-
+        $objeto = $this->model::getLideresySublider($id, $this->user->municipio_id);
+        if ($objeto) {
+            return response()->json([
+                'code' => 200,
+                'data' => $objeto
+            ], Response::HTTP_OK);
+        } else {
+            return response()->json([
+                'code' => 200,
+                'data' => []
+            ], Response::HTTP_BAD_REQUEST);
+        }
     }
 
     public function getSublideres($id)
@@ -294,6 +307,7 @@ class PersonaController extends Controller
             return response()->json([
                 'code' => 200,
                 'name' => $objeto->nombrecompleto,
+                'data' => $objeto,
                 'duplicado' => 'si'
             ], Response::HTTP_OK);
         } else {
@@ -312,7 +326,7 @@ class PersonaController extends Controller
                         ])
                         ->post($url, [
                             'nuips' => [$numerodocumento],
-                            "enviarapi"=> false
+                            "enviarapi" => false
                         ]);
 
                     if ($response->successful()) {
@@ -336,19 +350,16 @@ class PersonaController extends Controller
                                 'direccion' => $votingPlace['DIRECCIÓN'] ?? '',
                                 'mesa' => $votingPlace['MESA'] ?? '',
                             ], Response::HTTP_OK);
-                        }else{
+                        } else {
                             return response()->json([
                                 'code' => 200,
                                 'message' => 'Persona no encontrada',
                                 'duplicado' => 'no',
                             ], Response::HTTP_OK);
                         }
-
-
                     }
                     // If status is not 200, continue to retry
                     $lastException = new \Exception('HTTP Status: ' . $response->status());
-
                 } catch (\Illuminate\Http\Client\ConnectionException $e) {
                     $lastException = $e;
                     // Wait before retry (except on last attempt)
@@ -388,64 +399,62 @@ class PersonaController extends Controller
     public function detalleSublideres($id)
     {
         //Listamos todos los registros activos
-        $objeto=$this->model::getDataSubLideres($id);
-       if($objeto){
-        return response()->json([
-            'code'=>200,
-            'data' => $objeto
-        ], Response::HTTP_OK);
-       }else{
-        return response()->json([
-            'code'=>400,
-            'data' => []
-        ], Response::HTTP_BAD_REQUEST);
-       }
-
+        $objeto = $this->model::getDataSubLideres($id);
+        if ($objeto) {
+            return response()->json([
+                'code' => 200,
+                'data' => $objeto
+            ], Response::HTTP_OK);
+        } else {
+            return response()->json([
+                'code' => 400,
+                'data' => []
+            ], Response::HTTP_BAD_REQUEST);
+        }
     }
 
     public function getEstadisticas($id)
     {
         //Listamos todos los registros activos
-        $objeto=$this->model::getEstadisticas($id);
-       if($objeto){
-        return response()->json([
-            'code'=>200,
-            'data' => $objeto
-        ], Response::HTTP_OK);
-       }else{
-        return response()->json([
-            'code'=>400,
-            'data' => []
-        ], Response::HTTP_BAD_REQUEST);
-       }
-
+        $objeto = $this->model::getEstadisticas($id);
+        if ($objeto) {
+            return response()->json([
+                'code' => 200,
+                'data' => $objeto
+            ], Response::HTTP_OK);
+        } else {
+            return response()->json([
+                'code' => 400,
+                'data' => []
+            ], Response::HTTP_BAD_REQUEST);
+        }
     }
 
 
     public function getVotantes($id, $tipo)
     {
         //Listamos todos los registros activos
-        $objeto=$this->model::getVotantes($id, $tipo);
-       if($objeto){
-        return response()->json([
-            'code'=>200,
-            'data' => $objeto
-        ], Response::HTTP_OK);
-       }else{
-        return response()->json([
-            'code'=>400,
-            'data' => []
-        ], Response::HTTP_BAD_REQUEST);
-       }
-
+        $objeto = $this->model::getVotantes($id, $tipo);
+        if ($objeto) {
+            return response()->json([
+                'code' => 200,
+                'data' => $objeto
+            ], Response::HTTP_OK);
+        } else {
+            return response()->json([
+                'code' => 400,
+                'data' => []
+            ], Response::HTTP_BAD_REQUEST);
+        }
     }
 
-    public function getCantidadVotos(Request $request){
-        $lider=$request->lider;
-        $sublider=$request->sublider;
-        $cantidadVotos=Votante::cantidadVotos($lider, $sublider );
+    public function getCantidadVotos(Request $request)
+    {
+        $lider = $request->lider;
+        $sublider = $request->sublider;
+        $cantidadVotos = Votante::cantidadVotos($lider, $sublider);
         return response()->json([
-            'code'=>200,
+            'code' => 200,
             'data' => $cantidadVotos
         ], Response::HTTP_OK);
     }
@@ -453,20 +462,19 @@ class PersonaController extends Controller
     public function personasSinPuesto(Request $request)
     {
         //Listamos todos los productos
-        $objeto=$this->model::getPersonasPuesto($request->fecha1, $request->fecha2);
+        $objeto = $this->model::getPersonasPuesto($request->fecha1, $request->fecha2);
 
-       if($objeto){
-        return response()->json([
-            'code'=>200,
-            'data' => $objeto
-        ], Response::HTTP_OK);
-       }else{
-        return response()->json([
-            'code'=>400,
-            'data' => []
-        ], Response::HTTP_BAD_REQUEST);
-       }
-
+        if ($objeto) {
+            return response()->json([
+                'code' => 200,
+                'data' => $objeto
+            ], Response::HTTP_OK);
+        } else {
+            return response()->json([
+                'code' => 400,
+                'data' => []
+            ], Response::HTTP_BAD_REQUEST);
+        }
     }
 
     public function agregarPuesto(Request $request)
@@ -482,7 +490,7 @@ class PersonaController extends Controller
             return response()->json(['error' => $validator->messages()], 400);
         }
 
-        $documento=$request->documento;
+        $documento = $request->documento;
         $date = Carbon::now()->format('Y-m-d');
         //Buscamos el producto
         $objeto = Persona::where('numerodocumento', $documento)->first();
@@ -493,41 +501,39 @@ class PersonaController extends Controller
             'municipio' => $request->municipio,
             'puestovotacion' => $request->puestovotacion,
             'direccion' => $request->direccion,
-            'mesavotacion'=>$request->mesavotacion,
-            'fechapuesto'=>$date,
-            'estado'=>4,
-            'usuariosube'=>$request->usuariosube
+            'mesavotacion' => $request->mesavotacion,
+            'fechapuesto' => $date,
+            'estado' => 4,
+            'usuariosube' => $request->usuariosube
         ]);
-        if($objeto){
+        if ($objeto) {
             //Devolvemos los datos actualizados.
-        return response()->json([
-            'code'=>200,
-            'message' => 'OK',
-        ], Response::HTTP_OK);
-        }else{
-              return response()->json([
-            'code'=>400,
-            'message' => 'ERROR',
-        ], Response::HTTP_BAD_REQUEST);
+            return response()->json([
+                'code' => 200,
+                'message' => 'OK',
+            ], Response::HTTP_OK);
+        } else {
+            return response()->json([
+                'code' => 400,
+                'message' => 'ERROR',
+            ], Response::HTTP_BAD_REQUEST);
         }
     }
 
     public function getDigitados($usuario)
     {
         //Listamos todos los productos
-      $objeto=DB::select("select count(*) as total from personas v where v.puestovotacion is not null and v.usuariosube=? and v.estado=4", [$usuario]);
-       if($objeto){
-        return response()->json([
-            'code'=>200,
-            'data' => $objeto[0]
-        ], Response::HTTP_OK);
-       }else{
-        return response()->json([
-            'code'=>200,
-            'data' => []
-        ], Response::HTTP_OK);
-       }
-
+        $objeto = DB::select("select count(*) as total from personas v where v.puestovotacion is not null and v.usuariosube=? and v.estado=4", [$usuario]);
+        if ($objeto) {
+            return response()->json([
+                'code' => 200,
+                'data' => $objeto[0]
+            ], Response::HTTP_OK);
+        } else {
+            return response()->json([
+                'code' => 200,
+                'data' => []
+            ], Response::HTTP_OK);
+        }
     }
-
 }
