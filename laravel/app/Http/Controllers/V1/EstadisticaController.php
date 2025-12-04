@@ -117,6 +117,41 @@ class EstadisticaController extends Controller
 
     }
 
+    public function getEstadisticasAPI(Request $request)
+    {
+        //Listamos todos los productos
+        $fechaInicial=$request->fechainicio;
+        $fechaFinal=$request->fechafinal;
+       $votantes=Votante::where('apiname', true)
+       ->orWhere('apipuesto', true)
+       ->where(DB::raw('DATE(created_at)'), '>=', DB::raw("DATE('$fechaInicial')"))
+       ->where(DB::raw('DATE(created_at)'), '<=', DB::raw("DATE('$fechaFinal')"))
+       ->count();
+
+       $responsables=Persona::where(DB::raw('DATE(created_at)'), '>=', DB::raw("DATE('$fechaInicial')"))
+       ->where(DB::raw('DATE(created_at)'), '<=', DB::raw("DATE('$fechaFinal')"))
+       ->count();
+
+       $total = $votantes + $responsables;
+       $data=[
+        'votantes' => $votantes,
+        'responsables' => $responsables,
+        'total' => $total
+       ];
+
+       if($votantes){
+        return response()->json([
+            'code'=>200,
+            'data' => $data
+        ], Response::HTTP_OK);
+       }else{
+        return response()->json([
+            'code'=>200,
+            'data' => $data
+        ], Response::HTTP_OK);
+       }
+
+    }
 
 
 

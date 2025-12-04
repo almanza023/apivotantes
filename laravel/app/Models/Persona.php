@@ -159,7 +159,7 @@ class Persona extends Model
                 ->with([
                     'lider:id,nombrecompleto',
                     'sublider:id,nombrecompleto',
-                    'municipio:id,descripcion',
+                    'municipioResidencia:id,descripcion',
                     'puesto:id,descripcion',
                     'barrio:id,descripcion'
                 ])
@@ -195,7 +195,7 @@ class Persona extends Model
                         'mesa' => $item->mesa ?? '',
                         'barrio' => $item->barrio->descripcion ?? '',
                         'lider' => $item->lider->nombrecompleto ?? '',
-                        'municipioresidencia' => $item->municipio->descripcion ?? '',
+                        'municipioresidencia' => $item->municipioResidencia->descripcion ?? '',
                         'fecha_creacion' => $item->created_at ? $item->created_at->format('d M Y - H:i:s') : '',
                         'municipiovotacion' => $item->municipiovotacion,
                         'departamentovotacion' => $item->departamento,

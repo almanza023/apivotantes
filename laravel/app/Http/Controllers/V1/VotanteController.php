@@ -392,7 +392,7 @@ class VotanteController extends Controller
             ->with([
                 'lider:id,nombrecompleto',
                 'sublider:id,nombrecompleto',
-                'municipio:id,descripcion',
+                'municipioResidencia:id,descripcion',
                 'puesto:id,descripcion',
                 'barrio:id,descripcion'
             ])
@@ -412,7 +412,8 @@ class VotanteController extends Controller
                 'sublider_id',
                 'puesto_id',
                 'municipio_id',
-                'created_at'
+                'created_at',
+                'mismoMuncipio'
             )
             ->get();
 
@@ -429,13 +430,14 @@ class VotanteController extends Controller
                     'mesa' => $item->mesa ?? '',
                     'barrio' => $item->barrio->descripcion ?? '',
                     'lider' => $item->lider->nombrecompleto ?? '',
-                    'municipioresidencia' => $item->municipio->descripcion ?? '',
+                    'municipioresidencia' => $item->municipioResidencia->descripcion ?? '',
                     'fecha_creacion' => $item->created_at ? $item->created_at->format('d M Y - H:i:s') : '',
                     'municipiovotacion' => $item->municipiovotacion,
                     'departamentovotacion' => $item->departamento,
                     'puestovotacion' => $item->puestovotacion,
                     'mesavotacion' => $item->mesavotacion,
                     'direccion' => $item->direccion,
+                    'mismoMuncipio' => $item->mismoMuncipio,
 
                 ];
                 if ($item->sublider) {
@@ -648,7 +650,7 @@ class VotanteController extends Controller
                 ]);
             }
             foreach ($votantes as $votante) {
-                $validar = Votante::with(['lider', 'sublider', 'municipio'])
+                $validar = Votante::with(['lider', 'sublider', 'municipioResidencia'])
                     ->where('numerodocumento', $votante['numerodocumento'])->first();
                 if ($validar) {
                     $errores++;
@@ -774,7 +776,7 @@ class VotanteController extends Controller
     public function obtenerVotantesByCargue(Request $request)
     {
         $idcarguemasivo = $request->idcarguemasivo;
-        $data = Votante::where('idcarguemasivo', $idcarguemasivo)->get();
+        $data = Votante::where('idcarguemasivo', $idcarguemasivo)->with('municipioResidencia')->get();
         $carguemasivo = CargueMasivo::where('id', $idcarguemasivo)->first();
         $mensaje = "Cargados: " . $carguemasivo->total . " Validados: " . $carguemasivo->exitosos . " Errores: " . $carguemasivo->errores;
 

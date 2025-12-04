@@ -4,6 +4,7 @@ namespace App\Http\Controllers\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Barrio;
+use App\Models\LogAPI;
 use App\Models\Votante;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -31,23 +32,35 @@ class ApiRespuestaController extends Controller
     {
         $documento = $request->numerodocumento;
         $nombrecompleto = $request->nombrecompleto;
-        $departamento = $request->departamento;
-        $municipio = $request->municipio;
-        $puesto = $request->puesto;
-        $mesa = $request->mesa;
-        $direccion = $request->direccion;
+        $departamento = $request->departamento ?? null;
+        $municipio = $request->municipio ?? null;
+        $puesto = $request->puesto ?? null;
+        $mesa = $request->mesa ?? null;
+        $direccion = $request->direccion ?? null;
 
-        $votante = Votante::where('numerodocumento', $documento)->first();
-        if ($votante && empty($votante->nombrecompleto)) {
+        $votante = Votante::where('numerodocumento', $documento)->with('municipioResidencia')->first();
+        if ($votante) {
+
             $votante->update([
-                'nombrecompleto' => $votante->nombrecompleto,
+                'nombrecompleto' => $nombrecompleto,
                 'apiname' => true,
                 'fechaapiname' => Carbon::now()->format('Y-m-d H:i:s')
             ]);
 
-            if (!empty($departamento)) {
+            if ($departamento) {
+
+                //Verifica si el municipio es el mismo donde se registro
+                if ($votante->municipioResidencia->descripcion != $municipio) {
+                    $votante->update([
+                        'mismoMunicipio' => 1
+                    ]);
+                } else {
+                    $votante->update([
+                        'mismoMunicipio' => 0
+                    ]);
+                }
+
                 $votante->update([
-                    'nombrecompleto' => $nombrecompleto,
                     'departamento' => $departamento,
                     'municipio' => $municipio,
                     'puestovotacion' => $puesto,
@@ -55,6 +68,12 @@ class ApiRespuestaController extends Controller
                     'direccion' => $direccion,
                     'apipuesto' => true,
                     'fechaapipuesto' => Carbon::now()->format('Y-m-d H:i:s')
+                ]);
+
+                $log = new LogAPI();
+                $log->create([
+                    'respuesta' => "Consulta exitosa API",
+                    'operacion' => $votante->numerodocumento,
                 ]);
             }
 
@@ -79,9 +98,21 @@ class ApiRespuestaController extends Controller
         $mesa = $request->mesa;
         $direccion = $request->direccion;
 
-        $votante = Votante::where('numerodocumento', $documento)->first();
+        $votante = Votante::where('numerodocumento', $documento)->with('municipioResidencia')->first();
         if ($votante) {
             if (!empty($departamento)) {
+
+                //Verifica si el municipio es el mismo donde se registro
+                if ($votante->municipioResidencia->descripcion != $municipio) {
+                    $votante->update([
+                        'mismoMunicipio' => 1
+                    ]);
+                } else {
+                    $votante->update([
+                        'mismoMunicipio' => 0
+                    ]);
+                }
+
                 $votante->update([
                     'departamento' => $departamento,
                     'municipio' => $municipio,
@@ -90,6 +121,12 @@ class ApiRespuestaController extends Controller
                     'direccion' => $direccion,
                     'apipuesto' => true,
                     'fechaapipuesto' => Carbon::now()->format('Y-m-d H:i:s')
+                ]);
+
+                $log = new LogAPI();
+                $log->create([
+                    'respuesta' => "Consulta exitosa API",
+                    'operacion' => $votante->numerodocumento,
                 ]);
             }
             return response()->json([

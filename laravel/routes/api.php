@@ -173,6 +173,7 @@ Route::prefix('v1')->group(function () {
 
         Route::get('estadisticas', [EstadisticaController::class, 'index']);
         Route::get('estadisticas-lideres', [EstadisticaController::class, 'getEstadisticasLideres']);
+        Route::post('estadisticas-api', [EstadisticaController::class, 'getEstadisticasAPI']);
 
         Route::get('fuente/estadisticas/{fecha}/{fecha2}/{opcion}', [FuenteController::class, 'getEstadisticas']);
 
